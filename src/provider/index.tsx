@@ -1,5 +1,6 @@
-import {useState, createContext, useEffect, useContext} from "react";
+import {useState, createContext, useEffect, useContext, useCallback} from "react";
 import type { WalletContextValue, WalletState, WalletProviderProps } from "../type.ts";
+import {ethers} from "ethers";
 
 const WalletContext = createContext<WalletContextValue>({
     address: '',
@@ -34,6 +35,10 @@ const WalletContext = createContext<WalletContextValue>({
         provider: undefined,
         walletType: '',
         disconnectProcess: () => {}
+    },
+    balance: '',
+    refreshBalance(): Promise<void>{
+        return Promise.resolve(undefined);
     }
 })
 
@@ -55,8 +60,22 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
             provider: undefined,
             walletType: '',
             disconnectProcess: () => {}
-        }
+        },
+        balance: ''
     })
+
+    const refreshBalance = useCallback(async () => {
+        if (!state.provider || !state.address) return;
+
+        // ETH 余额
+        const balanceWei = await provider.getBalance(state.address);
+        const balaceString =  ethers.formatEther(balanceWei)
+        setState({
+            ...state,
+            balance: balaceString
+        })
+
+    }, [state]);
 
     const disconnect = async () => {
         try {
@@ -221,7 +240,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
                 ...state,
                 isOpen: false
             })
-        }
+        },
+        refreshBalance
     }
 
     useEffect(() => {

@@ -26,7 +26,8 @@ export interface WalletState {
     provider: any;
     wallets: Wallet[];
     isOpen: boolean;
-    connectedRsult: WalletConnectResult
+    connectedRsult: WalletConnectResult,
+    balance: string | null;
 }
 
 export interface WalletContextValue extends WalletState {
@@ -35,6 +36,7 @@ export interface WalletContextValue extends WalletState {
     switchChain: (chainID: number) => Promise<void>;
     openModal: () => void;
     closeModal: () => void;
+    refreshBalance: () => Promise<void>;
 }
 
 export type WalletProviderProps = {

@@ -4,6 +4,7 @@ import { useWallet } from '../provider';
 import { formatEther } from 'ethers';
 import { Button, Menu, MenuItem, Box, CircularProgress } from '@mui/material';
 import chains from '../chanis.ts'
+import wallets from "../wallets.ts";
 
 export default function ConnectButton() {
     const {
@@ -15,10 +16,12 @@ export default function ConnectButton() {
         openModal,
         disconnect,
         switchChain,
+        connectedRsult
     } = useWallet();
 
     const [balance, setBalance] = useState<string>('0');
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const [walletIcon, setWalletIcon] = useState<string>('')
 
     // 💰 获取余额
     useEffect(() => {
@@ -29,7 +32,14 @@ export default function ConnectButton() {
             }
         };
 
+        const connectedWallet = wallets.find((w) => w.id === connectedRsult.id);
+
         if (isConnected) fetchBalance();
+
+        if (connectedWallet) {
+            setWalletIcon(connectedWallet.icon)
+        }
+
     }, [provider, address, isConnected, chainID]); // ⚡ chainID变化时也刷新余额
 
     // 🧮 显示格式化的地址
@@ -76,6 +86,7 @@ export default function ConnectButton() {
                 </Button>
             ) : (
                 <>
+                    <img alt="钱包图标" src={walletIcon} width={28} height={28} className="rounded-sm" />
                     <Button
                         variant="outlined"
                         color="inherit"
