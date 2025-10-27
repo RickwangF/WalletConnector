@@ -26,6 +26,7 @@ export interface WalletState {
     provider: any;
     wallets: Wallet[];
     isOpen: boolean;
+    connectedRsult: WalletConnectResult
 }
 
 export interface WalletContextValue extends WalletState {
@@ -44,11 +45,24 @@ export type WalletProviderProps = {
     provider?: any;
 }
 
+export interface WalletConnectorOptions {
+    onAccountsChanged?: (accounts: string[]) => void;
+    onChainChanged?: (chainId: number) => void;
+    onDisconnect?: () => void;
+}
+
+export interface WalletConnectResult {
+    id: string;
+    provider: any;
+    walletType: string;
+    disconnectProcess: () => void;
+}
+
 export interface Wallet {
     id: string,
     name: string,
     icon: string,
-    connector: () => Promise<any>,
+    connector: (options?: WalletConnectorOptions) => Promise<WalletConnectResult>;
     description?: string,
     installed?: boolean,
     downloadLink?: string

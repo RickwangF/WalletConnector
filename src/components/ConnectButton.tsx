@@ -2,47 +2,69 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '../provider';
 import { formatEther } from 'ethers';
-import { Button, Box, Typography, CircularProgress } from '@mui/material';
+import { Button, Menu, MenuItem, Box, CircularProgress } from '@mui/material';
+import chains from '../chanis.ts'
 
 export default function ConnectButton() {
     const {
         address,
+        chainID,
         isConnected,
         isConnecting,
         provider,
         openModal,
         disconnect,
+        switchChain,
     } = useWallet();
 
     const [balance, setBalance] = useState<string>('0');
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
     // 💰 获取余额
     useEffect(() => {
         const fetchBalance = async () => {
-            // TODO: 
-            // if (provider && address) {
-            //     const balanceWei = await provider.getBalance(address);
-            //     setBalance(parseFloat(formatEther(balanceWei)).toFixed(4));
-            // }
+            if (provider && address) {
+                const balanceWei = await provider.getBalance(address);
+                setBalance(parseFloat(formatEther(balanceWei)).toFixed(4));
+            }
         };
 
         if (isConnected) fetchBalance();
-    }, [provider, address, isConnected]);
+    }, [provider, address, isConnected, chainID]); // ⚡ chainID变化时也刷新余额
 
     // 🧮 显示格式化的地址
-    const shortAddress = address
-        ? `${address.slice(0, 6)}...${address.slice(-4)}`
-        : '';
+    const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
+
+    const handleNetworkClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleNetworkClose = () => {
+        setAnchorEl(null);
+    };
+
+    const handleSwitchChain = async (chainId: number) => {
+        handleNetworkClose();
+        try {
+            await switchChain(chainId);
+        } catch (err) {
+            console.error('切换网络失败:', err);
+        }
+    };
 
     if (isConnecting)
         return (
-            <Button variant="outlined" disabled startIcon={<CircularProgress size={14} />}>
-                连接中...
+            <Button
+                variant="outlined"
+                disabled
+                startIcon={<CircularProgress size={14} />}
+            >
+                Connecting...
             </Button>
         );
 
     return (
-        <Box>
+        <Box display="flex" alignItems="center" gap={1}>
             {!isConnected ? (
                 <Button
                     variant="contained"
@@ -50,17 +72,46 @@ export default function ConnectButton() {
                     onClick={openModal}
                     sx={{ borderRadius: '12px', paddingX: 2 }}
                 >
-                    连接钱包
+                    Connect
                 </Button>
             ) : (
-                <Button
-                    variant="outlined"
-                    color="inherit"
-                    onClick={disconnect}
-                    sx={{ borderRadius: '12px', paddingX: 2 }}
-                >
-                    {shortAddress} · {balance} ETH
-                </Button>
+                <>
+                    <Button
+                        variant="outlined"
+                        color="inherit"
+                        onClick={disconnect}
+                        sx={{ borderRadius: '12px', paddingX: 2 }}
+                    >
+                        {shortAddress} · {balance} ETH
+                    </Button>
+
+                    {/* 网络切换按钮 */}
+                    <Button
+                        variant="outlined"
+                        color="primary"
+                        onClick={handleNetworkClick}
+                        sx={{ borderRadius: '12px', paddingX: 2 }}
+                    >
+                        {chains.find(c => c.id === chainID)?.name || 'Unknown'}
+                    </Button>
+
+                    {/* 下拉菜单 */}
+                    <Menu
+                        anchorEl={anchorEl}
+                        open={Boolean(anchorEl)}
+                        onClose={handleNetworkClose}
+                    >
+                        {chains.map(chain => (
+                            <MenuItem
+                                key={chain.id}
+                                selected={chain.id === chainID}
+                                onClick={() => handleSwitchChain(chain.id)}
+                            >
+                                {chain.name}
+                            </MenuItem>
+                        ))}
+                    </Menu>
+                </>
             )}
         </Box>
     );
