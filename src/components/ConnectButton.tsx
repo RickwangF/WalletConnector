@@ -16,25 +16,25 @@ export default function ConnectButton() {
         openModal,
         disconnect,
         switchChain,
-        connectedRsult
+        connectedRsult,
+        balance
     } = useWallet();
 
-    const [balance, setBalance] = useState<string>('0');
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [walletIcon, setWalletIcon] = useState<string>('')
 
     // 💰 获取余额
     useEffect(() => {
-        const fetchBalance = async () => {
-            if (provider && address) {
-                const balanceWei = await provider.getBalance(address);
-                setBalance(parseFloat(formatEther(balanceWei)).toFixed(4));
-            }
-        };
+        // const fetchBalance = async () => {
+        //     if (provider && address) {
+        //         const balanceWei = await provider.getBalance(address);
+        //         setBalance(parseFloat(formatEther(balanceWei)).toFixed(4));
+        //     }
+        // };
 
         const connectedWallet = wallets.find((w) => w.id === connectedRsult.id);
 
-        if (isConnected) fetchBalance();
+        // if (isConnected) fetchBalance();
 
         if (connectedWallet) {
             setWalletIcon(connectedWallet.icon)
@@ -86,7 +86,7 @@ export default function ConnectButton() {
                 </Button>
             ) : (
                 <>
-                    <img alt="钱包图标" src={walletIcon} width={28} height={28} className="rounded-sm" />
+                    { walletIcon && <img alt="钱包图标" src={walletIcon} width={28} height={28} className="rounded-sm" /> }
                     <Button
                         variant="outlined"
                         color="inherit"

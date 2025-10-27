@@ -1,6 +1,6 @@
 import {useState, createContext, useEffect, useContext, useCallback} from "react";
 import type { WalletContextValue, WalletState, WalletProviderProps } from "../type.ts";
-import {ethers} from "ethers";
+import { formatEther} from "ethers";
 
 const WalletContext = createContext<WalletContextValue>({
     address: '',
@@ -67,15 +67,17 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
     const refreshBalance = useCallback(async () => {
         if (!state.provider || !state.address) return;
 
-        // ETH 余额
-        const balanceWei = await provider.getBalance(state.address);
-        const balaceString =  ethers.formatEther(balanceWei)
-        setState({
-            ...state,
-            balance: balaceString
-        })
-
-    }, [state]);
+        try {
+            const balanceWei = await state.provider.getBalance(state.address);
+            const balanceString = parseFloat(formatEther(balanceWei)).toFixed(4);
+            setState(prev => ({
+                ...prev,
+                balance: balanceString,
+            }));
+        } catch (e) {
+            console.error("[WalletProvider] 获取余额失败", e);
+        }
+    }, [state.provider, state.address]);
 
     const disconnect = async () => {
         try {
@@ -95,7 +97,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
                     provider: undefined,
                     walletType: '',
                     disconnectProcess: () => {}
-                }
+                },
+                balance: ''
             }));
 
             localStorage.removeItem("connectedWalletID");
@@ -149,6 +152,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
             });
 
             localStorage.setItem("connectedWalletID", walletID);
+            await refreshBalance();
         } catch (err: any) {
             console.error("连接失败", err);
             setState((prev) => ({ ...prev, isConnecting: false, error: err }));
@@ -251,6 +255,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
             connect(cahcedConnectedWalletID)
         }
     }, []);
+
+    useEffect(() => {
+        if (state.isConnected && state.address) {
+            refreshBalance();
+        }
+    }, [state.address, state.isConnected, state.chainID, refreshBalance]);
 
     return (
         <WalletContext.Provider value={value}>
