@@ -6,6 +6,7 @@ import chains from './chanis.ts'
 import ConnectButton from "./components/ConnectButton.tsx";
 import WalletModal from "./components/WalletModal.tsx";
 import wallets from "./wallets.ts";
+import SendEthButton from "./components/SendEthButton.tsx";
 
 declare global {
     interface Window {
@@ -21,6 +22,7 @@ function App() {
       <WalletProvider chains={chains} provider={provider} autoConnect={true} wallets={wallets}>
           <ConnectButton />
           <WalletModal />
+          <SendEthButton />
       </WalletProvider>
     </>
   )

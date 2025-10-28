@@ -37,6 +37,7 @@ export interface WalletContextValue extends WalletState {
     openModal: () => void;
     closeModal: () => void;
     refreshBalance: () => Promise<void>;
+    sendTransaction: (txReceipt: any) => Promise<void>;
 }
 
 export type WalletProviderProps = {

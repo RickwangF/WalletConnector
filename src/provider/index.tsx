@@ -39,6 +39,10 @@ const WalletContext = createContext<WalletContextValue>({
     balance: '',
     refreshBalance(): Promise<void>{
         return Promise.resolve(undefined);
+    },
+    sendTransaction(txReceipt: any): Promise<void> {
+        console.log(txReceipt);
+        return Promise.resolve(undefined);
     }
 })
 
@@ -65,6 +69,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
     })
 
     const refreshBalance = useCallback(async () => {
+        console.log('refresh balance')
         if (!state.provider || !state.address) return;
 
         try {
@@ -78,6 +83,16 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
             console.error("[WalletProvider] 获取余额失败", e);
         }
     }, [state.provider, state.address]);
+
+    // ⚡ 封装发送交易方法
+    const sendTransaction = useCallback(async (txReceipt: any) => {
+        debugger
+        if (!state.provider || !state.address) throw new Error("钱包未连接");
+        if (!txReceipt) {
+            throw new Error("交易收据为空");
+        }
+        await refreshBalance(); // 交易成功后刷新余额
+    }, [state.provider, state.address, refreshBalance]);
 
     const disconnect = async () => {
         try {
@@ -127,7 +142,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
                 },
                 onDisconnect: () => {
                     disconnect();
-                },
+                }
             });
 
             const signer = await provider.getSigner();
@@ -245,7 +260,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
                 isOpen: false
             })
         },
-        refreshBalance
+        refreshBalance,
+        sendTransaction,
     }
 
     useEffect(() => {

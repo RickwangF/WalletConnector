@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from 'react';
 import { useWallet } from '../provider';
-import { formatEther } from 'ethers';
 import { Button, Menu, MenuItem, Box, CircularProgress } from '@mui/material';
 import chains from '../chanis.ts'
 import wallets from "../wallets.ts";
