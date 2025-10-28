@@ -40,7 +40,7 @@ const WalletContext = createContext<WalletContextValue>({
     refreshBalance(): Promise<void>{
         return Promise.resolve(undefined);
     },
-    sendTransaction(txReceipt: any): Promise<void> {
+    sendTransactionReceipt(txReceipt: any): Promise<void> {
         console.log(txReceipt);
         return Promise.resolve(undefined);
     }
@@ -85,8 +85,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
     }, [state.provider, state.address]);
 
     // ⚡ 封装发送交易方法
-    const sendTransaction = useCallback(async (txReceipt: any) => {
-        debugger
+    const sendTransactionReceipt = useCallback(async (txReceipt: any) => {
         if (!state.provider || !state.address) throw new Error("钱包未连接");
         if (!txReceipt) {
             throw new Error("交易收据为空");
@@ -175,6 +174,17 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
     };
 
     const switchChain = async (chainID: number) => {
+
+        const { connectedRsult } = state;
+
+        if (!connectedRsult.provider) return;
+
+        // 检查钱包类型
+        if (connectedRsult.walletType === "Phantom Wallet") {
+            alert("⚠️ Phantom 钱包暂不支持程序切换网络，请手动在钱包中切换");
+            return;
+        }
+
         const ethereum = (window as any).ethereum;
         if (!ethereum) {
             console.error("[WalletProvider] 未检测到钱包实例");
@@ -198,6 +208,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
             }));
 
             console.log("[WalletProvider] 切换网络成功:", chainID);
+            // 保存ChaninID
+            localStorage.setItem("cachedChainId", chainID.toString());
             if (state.connectedRsult.id) {
                 connect(state.connectedRsult.id)
             }
@@ -261,7 +273,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallet
             })
         },
         refreshBalance,
-        sendTransaction,
+        sendTransactionReceipt,
     }
 
     useEffect(() => {
