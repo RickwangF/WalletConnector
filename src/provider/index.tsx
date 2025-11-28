@@ -1,308 +1,329 @@
-import {useState, createContext, useEffect, useContext, useCallback} from "react";
-import type { WalletContextValue, WalletState, WalletProviderProps } from "../type.ts";
-import { formatEther} from "ethers";
+import {
+  useState,
+  createContext,
+  useEffect,
+  useContext,
+  useCallback,
+} from "react";
+import type {
+  WalletContextValue,
+  WalletState,
+  WalletProviderProps,
+} from "../type.ts";
+import { formatEther } from "ethers";
 
 const WalletContext = createContext<WalletContextValue>({
-    address: '',
-    chainID: 0,
-    isConnecting: false,
-    isConnected: false,
-    ensName: '',
-    error: null,
-    chains: [],
-    wallets: [],
-    isOpen: false,
-    openModal(): void {
-
-    },
-    closeModal(): void {
-
-    },
-    connect(walletID: string): Promise<void> {
-        console.log(walletID);
-        return Promise.resolve(undefined);
-    },
-    disconnect(): Promise<void> {
-        return Promise.resolve(undefined);
-    },
+  address: "",
+  chainID: 0,
+  isConnecting: false,
+  isConnected: false,
+  ensName: "",
+  error: null,
+  chains: [],
+  wallets: [],
+  isOpen: false,
+  openModal(): void {},
+  closeModal(): void {},
+  connect(walletID: string): Promise<void> {
+    console.log(walletID);
+    return Promise.resolve(undefined);
+  },
+  disconnect(): Promise<void> {
+    return Promise.resolve(undefined);
+  },
+  provider: undefined,
+  switchChain(chainID: number): Promise<void> {
+    console.log(chainID);
+    return Promise.resolve(undefined);
+  },
+  connectedResult: {
+    id: "",
     provider: undefined,
-    switchChain(chainID: number): Promise<void> {
-        console.log(chainID);
-        return Promise.resolve(undefined);
+    walletType: "",
+    disconnectProcess: () => {},
+  },
+  balance: "",
+  refreshBalance(): Promise<void> {
+    return Promise.resolve(undefined);
+  },
+  sendTransactionReceipt(txReceipt: any): Promise<void> {
+    console.log(txReceipt);
+    return Promise.resolve(undefined);
+  },
+});
+
+export const WalletProvider: React.FC<WalletProviderProps> = ({
+  children,
+  wallets,
+  chains,
+  provider,
+  autoConnect,
+}) => {
+  const [state, setState] = useState<WalletState>({
+    address: "",
+    chainID: 0,
+    isConnected: false,
+    isConnecting: false,
+    ensName: "",
+    error: null,
+    isOpen: false,
+    chains,
+    provider,
+    wallets,
+    connectedResult: {
+      id: "",
+      provider: undefined,
+      walletType: "",
+      disconnectProcess: () => {},
     },
-    connectedRsult: {
-        id: '',
-        provider: undefined,
-        walletType: '',
-        disconnectProcess: () => {}
-    },
-    balance: '',
-    refreshBalance(): Promise<void>{
-        return Promise.resolve(undefined);
-    },
-    sendTransactionReceipt(txReceipt: any): Promise<void> {
-        console.log(txReceipt);
-        return Promise.resolve(undefined);
+    balance: "",
+  });
+
+  const refreshBalance = useCallback(async () => {
+    console.log("refresh balance");
+    if (!state.provider || !state.address) return;
+
+    try {
+      const balanceWei = await state.provider.getBalance(state.address);
+      const balanceString = parseFloat(formatEther(balanceWei)).toFixed(4);
+      setState((prev) => ({
+        ...prev,
+        balance: balanceString,
+      }));
+    } catch (e) {
+      console.error("[WalletProvider] 获取余额失败", e);
     }
-})
+  }, [state.provider, state.address]);
 
-export const WalletProvider: React.FC<WalletProviderProps> = ({ children, wallets, chains, provider, autoConnect }) => {
+  // ⚡ 封装发送交易方法
+  const sendTransactionReceipt = useCallback(
+    async (txReceipt: any) => {
+      if (!state.provider || !state.address) throw new Error("钱包未连接");
+      if (!txReceipt) {
+        throw new Error("交易收据为空");
+      }
+      await refreshBalance(); // 交易成功后刷新余额
+    },
+    [state.provider, state.address, refreshBalance]
+  );
 
-    const [state, setState] = useState<WalletState>({
-        address: '',
-        chainID: 0,
+  const disconnect = async () => {
+    try {
+      if (state.connectedResult) {
+        state.connectedResult.disconnectProcess();
+      }
+
+      setState((prev) => ({
+        ...prev,
+        address: null,
+        chainID: null,
+        provider: null,
         isConnected: false,
-        isConnecting: false,
-        ensName: '',
         error: null,
-        isOpen: false,
+        connectedRsult: {
+          id: "",
+          provider: undefined,
+          walletType: "",
+          disconnectProcess: () => {},
+        },
+        balance: "",
+      }));
+
+      localStorage.removeItem("connectedWalletID");
+    } catch (err) {
+      console.error("[WalletProvider] disconnect failed:", err);
+    }
+  };
+
+  const connect = async (walletID: string) => {
+    const wallet = wallets.find((w) => w.id === walletID);
+    if (!wallet) throw new Error("未找到钱包: " + walletID);
+
+    try {
+      setState((prev) => ({ ...prev, isConnecting: true }));
+
+      const connector = wallet.connector;
+
+      // 传入事件回调
+      const { provider, walletType, disconnectProcess } = await connector({
+        onAccountsChanged: (accounts) => {
+          if (accounts.length === 0) disconnect();
+          else setState((prev) => ({ ...prev, address: accounts[0] }));
+        },
+        onChainChanged: (chainId, provider) => {
+          setState((prev) => ({ ...prev, provider, chainID: chainId }));
+        },
+        onDisconnect: () => {
+          disconnect();
+        },
+      });
+
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+      const network = await provider.getNetwork();
+
+      setState({
+        ...state,
+        address,
+        chainID: Number(network.chainId),
+        isConnected: true,
+        isConnecting: false,
         chains,
         provider,
-        wallets,
-        connectedRsult:{
-            id: '',
-            provider: undefined,
-            walletType: '',
-            disconnectProcess: () => {}
+        isOpen: false,
+        connectedResult: {
+          id: walletID,
+          provider,
+          walletType,
+          disconnectProcess,
         },
-        balance: ''
-    })
+      });
 
-    const refreshBalance = useCallback(async () => {
-        console.log('refresh balance')
-        if (!state.provider || !state.address) return;
+      localStorage.setItem("connectedWalletID", walletID);
+      await refreshBalance();
+    } catch (err: any) {
+      console.error("连接失败", err);
+      setState((prev) => ({ ...prev, isConnecting: false, error: err }));
+    }
+  };
 
-        try {
-            const balanceWei = await state.provider.getBalance(state.address);
-            const balanceString = parseFloat(formatEther(balanceWei)).toFixed(4);
-            setState(prev => ({
-                ...prev,
-                balance: balanceString,
-            }));
-        } catch (e) {
-            console.error("[WalletProvider] 获取余额失败", e);
-        }
-    }, [state.provider, state.address]);
+  const switchChain = async (chainID: number) => {
+    const { connectedResult } = state;
 
-    // ⚡ 封装发送交易方法
-    const sendTransactionReceipt = useCallback(async (txReceipt: any) => {
-        if (!state.provider || !state.address) throw new Error("钱包未连接");
-        if (!txReceipt) {
-            throw new Error("交易收据为空");
-        }
-        await refreshBalance(); // 交易成功后刷新余额
-    }, [state.provider, state.address, refreshBalance]);
-
-    const disconnect = async () => {
-        try {
-            if (state.connectedRsult) {
-                state.connectedRsult.disconnectProcess()
-            }
-
-            setState(prev => ({
-                ...prev,
-                address: null,
-                chainID: null,
-                provider: null,
-                isConnected: false,
-                error: null,
-                connectedRsult: {
-                    id: '',
-                    provider: undefined,
-                    walletType: '',
-                    disconnectProcess: () => {}
-                },
-                balance: ''
-            }));
-
-            localStorage.removeItem("connectedWalletID");
-        } catch (err) {
-            console.error("[WalletProvider] disconnect failed:", err);
-        }
-    };
-
-    const connect = async (walletID: string) => {
-        const wallet = wallets.find((w) => w.id === walletID);
-        if (!wallet) throw new Error("未找到钱包: " + walletID);
-
-        try {
-            setState((prev) => ({ ...prev, isConnecting: true }));
-
-            const connector = wallet.connector;
-
-            // 传入事件回调
-            const { provider, walletType, disconnectProcess } = await connector({
-                onAccountsChanged: (accounts) => {
-                    if (accounts.length === 0) disconnect();
-                    else setState((prev) => ({ ...prev, address: accounts[0] }));
-                },
-                onChainChanged: (chainId) => {
-                    setState((prev) => ({ ...prev, chainID: chainId }));
-                },
-                onDisconnect: () => {
-                    disconnect();
-                }
-            });
-
-            const signer = await provider.getSigner();
-            const address = await signer.getAddress();
-            const network = await provider.getNetwork();
-
-            setState({
-                ...state,
-                address,
-                chainID: Number(network.chainId),
-                isConnected: true,
-                isConnecting: false,
-                chains,
-                provider,
-                isOpen: false,
-                connectedRsult: {
-                    id: walletID,
-                    provider,
-                    walletType,
-                    disconnectProcess
-                }
-            });
-
-            localStorage.setItem("connectedWalletID", walletID);
-            await refreshBalance();
-        } catch (err: any) {
-            console.error("连接失败", err);
-            setState((prev) => ({ ...prev, isConnecting: false, error: err }));
-        }
-    };
-
-    const switchChain = async (chainID: number) => {
-
-        const { connectedRsult } = state;
-
-        if (!connectedRsult.provider) return;
-
-        // 检查钱包类型
-        if (connectedRsult.walletType === "Phantom Wallet") {
-            alert("⚠️ Phantom 钱包暂不支持程序切换网络，请手动在钱包中切换");
-            return;
-        }
-
-        const ethereum = (window as any).ethereum;
-        if (!ethereum) {
-            console.error("[WalletProvider] 未检测到钱包实例");
-            return;
-        }
-
-        const hexChainId = "0x" + chainID.toString(16); // 转为16进制字符串
-        console.log("[WalletProvider] Request switch to chain:", hexChainId);
-
-        try {
-            // 尝试切换网络
-            await ethereum.request({
-                method: "wallet_switchEthereumChain",
-                params: [{ chainId: hexChainId }],
-            });
-
-            // 更新 Context 中的 chainID
-            setState((prev) => ({
-                ...prev,
-                chainID,
-            }));
-
-            console.log("[WalletProvider] 切换网络成功:", chainID);
-            // 保存ChaninID
-            localStorage.setItem("cachedChainId", chainID.toString());
-            if (state.connectedRsult.id) {
-                connect(state.connectedRsult.id)
-            }
-
-        } catch (error: any) {
-            // 如果钱包未添加此链，添加之
-            if (error.code === 4902) {
-                const targetChain = chains.find((c) => c.id === chainID);
-                if (!targetChain) throw new Error("未知链 ID：" + chainID);
-
-                try {
-                    await ethereum.request({
-                        method: "wallet_addEthereumChain",
-                        params: [
-                            {
-                                chainId: hexChainId,
-                                chainName: targetChain.name,
-                                nativeCurrency: targetChain.currency,
-                                rpcUrls: [targetChain.rpcUrl],
-                                blockExplorerUrls: [targetChain.blockExplorer.url],
-                            },
-                        ],
-                    });
-
-                    // 添加成功后再切换
-                    await ethereum.request({
-                        method: "wallet_switchEthereumChain",
-                        params: [{ chainId: hexChainId }],
-                    });
-
-                    setState((prev) => ({
-                        ...prev,
-                        chainID,
-                    }));
-
-                    console.log("[WalletProvider] 成功添加并切换到:", targetChain.name);
-                } catch (addError) {
-                    console.error("[WalletProvider] 添加链失败:", addError);
-                }
-            } else {
-                console.error("[WalletProvider] 切换链失败:", error);
-            }
-        }
-    };
-
-    const value: WalletContextValue = {
-        ...state,
-        connect,
-        disconnect,
-        switchChain,
-        openModal: () => {
-            setState({
-                ...state,
-                isOpen: true
-            })
-        },
-        closeModal: () => {
-            setState({
-                ...state,
-                isOpen: false
-            })
-        },
-        refreshBalance,
-        sendTransactionReceipt,
+    if (!connectedResult.provider) return;
+    let ethereum: any = null;
+    switch (connectedResult.walletType) {
+      case "MetaMask":
+        ethereum = (window as any).ethereum;
+        break;
+      case "CoinbaseWallet":
+        ethereum = (window as any).coinbaseWalletExtension;
+        break;
+      case "OKXWallet":
+        ethereum = (window as any).okxwallet;
+        break;
+      case "PhantomWallet":
+        ethereum = (window as any).phantom?.ethereum;
+        break;
+      default:
+        alert("当前钱包不支持切换网络");
+        return;
     }
 
-    useEffect(() => {
-        const cahcedConnectedWalletID = localStorage.getItem("connectedWalletID");
-        if (autoConnect && !state.isConnected && cahcedConnectedWalletID) {
-            console.log('autoLogin cached walletID :', cahcedConnectedWalletID);
-            connect(cahcedConnectedWalletID)
-        }
-    }, []);
+    if (!ethereum) {
+      console.error("[WalletProvider] 未检测到钱包实例");
+      return;
+    }
 
-    useEffect(() => {
-        if (state.isConnected && state.address) {
-            refreshBalance();
-        }
-    }, [state.address, state.isConnected, state.chainID, refreshBalance]);
+    const hexChainId = "0x" + chainID.toString(16); // 转为16进制字符串
+    console.log("[WalletProvider] Request switch to chain:", hexChainId);
 
-    return (
-        <WalletContext.Provider value={value}>
-            {children}
-        </WalletContext.Provider>
-    )
-}
+    try {
+      // 尝试切换网络
+      await ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: hexChainId }],
+      });
+
+      // 更新 Context 中的 chainID
+      setState((prev) => ({
+        ...prev,
+        chainID,
+      }));
+
+      console.log("[WalletProvider] 切换网络成功:", chainID);
+      // 保存ChaninID
+      localStorage.setItem("cachedChainId", chainID.toString());
+      if (state.connectedResult.id) {
+        connect(state.connectedResult.id);
+      }
+    } catch (error: any) {
+      // 如果钱包未添加此链，添加之
+      if (error.code === 4902) {
+        const targetChain = chains.find((c) => c.id === chainID);
+        if (!targetChain) throw new Error("未知链 ID：" + chainID);
+
+        try {
+          await ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: hexChainId,
+                chainName: targetChain.name,
+                nativeCurrency: targetChain.currency,
+                rpcUrls: [targetChain.rpcUrl],
+                blockExplorerUrls: [targetChain.blockExplorer.url],
+              },
+            ],
+          });
+
+          // 添加成功后再切换
+          await ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: hexChainId }],
+          });
+
+          setState((prev) => ({
+            ...prev,
+            chainID,
+          }));
+
+          console.log("[WalletProvider] 成功添加并切换到:", targetChain.name);
+        } catch (addError) {
+          console.error("[WalletProvider] 添加链失败:", addError);
+        }
+      } else {
+        console.error("[WalletProvider] 切换链失败:", error);
+      }
+    }
+  };
+
+  const value: WalletContextValue = {
+    ...state,
+    connect,
+    disconnect,
+    switchChain,
+    openModal: () => {
+      setState({
+        ...state,
+        isOpen: true,
+      });
+    },
+    closeModal: () => {
+      setState({
+        ...state,
+        isOpen: false,
+      });
+    },
+    refreshBalance,
+    sendTransactionReceipt,
+  };
+
+  useEffect(() => {
+    const cahcedConnectedWalletID = localStorage.getItem("connectedWalletID");
+    if (autoConnect && !state.isConnected && cahcedConnectedWalletID) {
+      console.log("autoLogin cached walletID :", cahcedConnectedWalletID);
+      connect(cahcedConnectedWalletID);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (state.isConnected && state.address) {
+      refreshBalance();
+    }
+  }, [state.address, state.isConnected, state.chainID, refreshBalance]);
+
+  return (
+    <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
+  );
+};
 
 export const useWallet = () => {
-    const context = useContext(WalletContext);
-    if (!context) {
-        throw new Error()
-    }
-    return context
-}
+  const context = useContext(WalletContext);
+  if (!context) {
+    throw new Error();
+  }
+  return context;
+};
 
-export default WalletProvider
+export default WalletProvider;
